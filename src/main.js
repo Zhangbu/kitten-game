@@ -7,6 +7,11 @@
  */
 
 // ============================================================
+// Phase 3: Replace dojo pub/sub with mitt-based event bus
+// ============================================================
+import bus, { installEventBus } from './lib/event-bus.js';
+
+// ============================================================
 // Global aliases for strict module compatibility
 // ============================================================
 var $ = window.$;
@@ -84,6 +89,9 @@ function loadGameFiles() {
   var now = Date.now();
   var version = '1493';
   var buildRevision = 0;
+
+  // ---- Install event bus (replaces dojo.publish/subscribe) ----
+  installEventBus();
 
   // ---- Fetch build version (non-blocking) ----
   $.getJSON('build.version.json?_=' + now)
