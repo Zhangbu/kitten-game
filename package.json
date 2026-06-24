@@ -8,10 +8,11 @@
     "test": "test"
   },
   "scripts": {
-    "build": "node tools/generate-buildver.js",
+    "dev": "vite",
+    "build": "vite build && node tools/generate-buildver.js",
+    "preview": "vite preview",
     "test": "jest --config jest.config.unittest.json",
-    "lint": "eslint *.js js/*.js --quiet",
-    "start": "http-server"
+    "lint": "eslint *.js js/*.js --quiet"
   },
   "husky": {
     "hooks": {
@@ -32,8 +33,8 @@
   "homepage": "https://bitbucket.org/bloodrizer/kitten-game#readme",
   "devDependencies": {
     "eslint": "^7.4.0",
-    "http-server": "^0.12.3",
     "husky": "^4.2.5",
-    "jest": "^26.1.0"
+    "jest": "^26.1.0",
+    "vite": "^6.3.0"
   }
 }

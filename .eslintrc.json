@@ -15,7 +15,7 @@
           }
         }
     ],
-    "ignorePatterns": ["lib/**/*", "node_modules/**/*"],
+    "ignorePatterns": ["lib/**/*", "node_modules/**/*", "src/**/*", "vite.config.js"],
     "rules": {
         "quotes": [
             "warn",
