@@ -65,7 +65,7 @@ try {
 
     global.LZString = require("../lib/lz-string.js");
     require("../lib/dropbox_v2.js");
-    require("../lib/system.js");
+    // SystemJS removed in Phase 1 — game files loaded via <script> tags
 
     global.LCstorage = window.localStorage;
     if (document.all && !window.localStorage) {

@@ -24,13 +24,12 @@
 
 		<!-- Local versions of libs will be hosted so our Chinese players wont be forced to use VPN -->
 		<script src="lib/jQuery.js?v=_2"></script>
-		<script src="lib/dojo.xd.js"></script>
+		<script src="lib/dojo.js"></script>
 		<script src="lib/lz-string.js"></script>
 		<script src="lib/dropbox_v2.js"></script>
 		<script src="lib/md5.js"></script>
 
 		<!-- friends don't let friends use AMD and require.js -->
-		<script src="lib/system.js"></script>
 
 		<!-- Global site tag (gtag.js) - Google Analytics -->
 		<script async src="https://www.googletagmanager.com/gtag/js?id=G-0QBDX221PR"></script>
@@ -63,248 +62,30 @@
 			}
 		</script>
 
-		<script type="text/javascript">
+				<!-- Game boot files (core files loaded dynamically by main.js) -->
+		<script src="config.js"></script>
+		<script src="i18n.js"></script>
 
-			var version = "1493";
-			var buildRevision = 0;
-
-			var loadingProgress = 0,
-				progressMax = 0;
-
-			var loadingMessages = [
-				"mew~mew~",
-				"mew~mew~mew~",
-				"mew~mew~mew~mew~",
-				"mew~mew~mew~mew~mew~",
-			];
-
-			function loadModule(module){
-				loadingProgress++;
-				console.log("loading module " + module + "...");
-				var progress = (loadingProgress / progressMax ) * 100;
-				$("#loadingProgressBar").attr("value", progress);
-
-				var i = (Math.floor(Math.random() * loadingMessages.length));
-				$("#loadingProgressInfo").html(loadingMessages[i] + "...&nbsp(" + progress.toFixed() + "%)");
-				return System.import(module + ".js?rev_=" + buildRevision + "_" + Date.now());
-			}
-
-			function _import(module, def){
-				if (!def){
-					return loadModule(module);
-				} else {
-					return def.then(function(){
-						return loadModule(module);
-					}).catch(function(err){
-						console.error("_import#: unable to load module:", module);
-						console.trace(err);
-					});
+		<!-- Dev functions (globals for HTML onclick) -->
+		<script>
+			window.dev = function dev() {
+				if (window.gamePage && window.gamePage.isLocalhost) {
+					document.getElementById('dev_boostCalendar').style.display = '';
+					document.getElementById('devPanelCheats').style.display = '';
+					window.gamePage.devMode = true;
+					window.gamePage.render();
 				}
-			}
-
-			function loadTheme(themeId, timestamp){
-				$("<link />")
-					.attr("rel", "stylesheet")
-					.attr("type", "text/css")
-					.attr("href", "res/theme_" + themeId + ".css?_=" + timestamp)
-					.appendTo($("head"));
-			}
-
-			dojo.addOnLoad(function() {
-				var displayedVersion = version.split('').join('.');
-				if (window.location.href.indexOf("alpha") >= 0) {
-					displayedVersion += "-&alpha;";
-				} else if (window.location.href.indexOf("beta") >= 0) {
-					displayedVersion += "-&beta;";
-				}
-
-				$("#tooltip").hide();
-
-				SystemJS.config({
-					baseURL: ''
-				});
-
-				var modules = [
-					"js/resources",
-					"js/calendar",
-					"js/buildings",
-					"js/village",
-					"js/science",
-					"js/workshop",
-					"js/diplomacy",
-					"js/religion",
-					"js/achievements",
-
-
-					"js/jsx/left.jsx",
-					"js/jsx/mid.jsx",
-					"js/jsx/toolbar.jsx",
-					"js/jsx/chiral.jsx",
-					"js/jsx/queue.jsx",
-
-					//required for defining IReactAware, will be relied upon by js/space
-					"js/ui",
-
-					"js/space",
-					"js/prestige",
-					"js/time",
-					"js/stats",
-					"js/challenges",
-					"js/void",
-					"js/math",
-					"game",
-
-					"js/toolbar"
-				];
-				progressMax = modules.length + 3;
-				console.log("Loading...");
-
-				//------ preload theme id ---------
-				var uiData = LCstorage["com.nuclearunicorn.kittengame.ui"];
-				var uiSettings = uiData && JSON.parse(uiData);
-				if (uiSettings){
-					if (uiSettings.theme){
-						$("body").addClass("scheme_" + uiSettings.theme);
-						loadTheme(uiSettings.theme, now);
-					}
-				}
-
-				var def = $.getJSON("build.version.json?="+now).then(function(json){
-					buildRevision = json.buildRevision;
-					console.log("build revison is" + buildRevision);
-					$("#versionLink").html(displayedVersion + ".r" + buildRevision);
-				});
-				def = _import("config", def);
-				def.then(function() {
-					var schemes = new classes.KGConfig().statics.schemes;
-					for (var i = 0; i < schemes.length; ++i) {
-						//todo: skip theme if preloaded
-						if (!uiSettings || uiSettings.theme != schemes[i]){
-							loadTheme(schemes[i], buildRevision);
-						}
-					}
-				});
-
-				def = _import("i18n", def);
-				def.then(function () {
-					console.log("Loading locale system");
-					var langPromise = i18nLang.init(now);
-					langPromise.done(function() {
-						loadingMessages = [
-							$I("ui.loading.msg.0"),
-							$I("ui.loading.msg.1"),
-							$I("ui.loading.msg.2"),
-							$I("ui.loading.msg.3"),
-							$I("ui.loading.msg.4"),
-							$I("ui.loading.msg.5"),
-							$I("ui.loading.msg.6"),
-							$I("ui.loading.msg.7"),
-							$I("ui.loading.msg.8"),
-							$I("ui.loading.msg.9"),
-							$I("ui.loading.msg.10"),
-							$I("ui.loading.msg.11"),
-							$I("ui.loading.msg.12"),
-							$I("ui.loading.msg.13"),
-							$I("ui.loading.msg.14"),
-							$I("ui.loading.msg.15"),
-						];
-
-						def = _import("core", def);
-						def.then(function () {
-							console.log("Loading game modules");
-							for (var i in modules){
-								def = _import(modules[i], def);
-							}
-							def.then(initGame);
-						});
-
-					}).fail(function() {
-						console.log("Unable to load locales");
-					});
-				});
-
-			});
-
-			function initGame() {
-				console.log("About to initialize the game");
-				$("#loadingContainer").hide();
-				$("#game").show();
-
-				try {
-					gamePage = game = new com.nuclearunicorn.game.ui.GamePage();
-					gamePage.setUI(new classes.ui.DesktopUI("gameContainerId"));
-
-					gamePage.telemetry.version = version;
-					gamePage.telemetry.buildRevision = buildRevision;
-					if (window.location.href.indexOf("beta") >= 0) {
-						gamePage.telemetry.buildRevision += "-b";
-					}
-
-					//--------------------------
-					var dropBoxClient = new Dropbox.Dropbox({clientId: "u6lnczzgm94nwg3"}); //the starting Dropbox object
-					game.setDropboxClient(dropBoxClient);
-
-
-					gamePage.load();
-					gamePage.updateKarma();
-
-					gamePage.render();
-					gamePage.ui.renderFilters();
-					gamePage.ui.onLoad();
-					gamePage.start();
-
-
-					//load optional irc
-
-					$('iframe#kiwiirc_iframe').attr(
-						'src', 
-						'https://kiwiirc.com/client/irc.canternet.org/?nick=kitten_?#kittensgame'
-					);
-
-					var config = new classes.KGConfig();
-
-					//update eldermass gifts on every game load pass
-					//TODO: toggle timer in the background?
-					gamePage.checkEldermass();
-					//---------------------------------
-
-
-					var host = window.location.hostname;
-					gamePage.isLocalhost = window.location.protocol == "file:" || host == "localhost" || host == "127.0.0.1";
-					if (gamePage.isLocalhost){
-						$("#devModeButton").show();
-					}
-				} catch (ex){
-					if (game && game.telemetry) {
-						game.telemetry.logEvent("error", ex);
-					}
-					console.error(ex);
-					console.trace();
-				}
-
-			}
-
-
-
-			function dev(){
-				if (gamePage.isLocalhost) {
-					$("#dev_boostCalendar").show();
-					$("#devPanelCheats").show();
-
-					gamePage.devMode = true;
-					gamePage.render();
-				}
-			}
-
-			function dev_boostCalendar() {
-				gamePage.calendar.ticksPerDay = 1/3;
-			}
-
-			function wipe(){
-				gamePage.wipe();
-			}
-
+			};
+			window.dev_boostCalendar = function dev_boostCalendar() {
+				if (window.gamePage) window.gamePage.calendar.ticksPerDay = 1 / 3;
+			};
+			window.wipe = function wipe() {
+				if (window.gamePage) window.gamePage.wipe();
+			};
 		</script>
+
+		<!-- Vite entry point -->
+		<script type="module" src="/src/main.js"></script>
 
 		<title>Kittens Game - a Dark Souls of incremental gaming</title>
 	</head>
