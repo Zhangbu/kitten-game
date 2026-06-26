@@ -13,6 +13,8 @@
 
   // ── Minimal Deferred (replaces $.Deferred) ────────────────────
   function Deferred() {
+    // Auto-instantiate when called without `new` (matches real jQuery behavior)
+    if (!(this instanceof Deferred)) return new Deferred();
     var self = this;
     this._promise = new Promise(function(resolve, reject) {
       self._resolve = resolve;
@@ -67,11 +69,13 @@
   };
 
   Deferred.prototype.promise = function() {
-    return this._promise;
+    // Return self so callers can chain .done()/.fail()/.always()
+    return this;
   };
 
   Deferred.prototype.then = function(doneFn, failFn) {
-    return this._promise.then(doneFn, failFn);
+    this._promise.then(doneFn, failFn);
+    return this;  // return Deferred for .fail()/.always() chaining
   };
 
   // ── Ajax (minimal) ────────────────────────────────────────────
@@ -342,7 +346,7 @@
       appendTo: function(target) {
         var $target = jQueryShim(target);
         var self = this;
-        $target.each(function(tgtEl) {
+        $target.each(function(_idx, tgtEl) {
           for (var i = 0; i < self.length; i++) {
             var el = self[i];
             if (i === 0) {
@@ -510,7 +514,9 @@
       },
 
       height: function() {
-        return this[0] ? this[0].offsetHeight : 0;
+        if (!this[0]) return 0;
+        if (this[0] === window || this[0] === document) return window.innerHeight || document.documentElement.clientHeight || 0;
+        return this[0].offsetHeight;
       },
 
       position: function() {
@@ -524,11 +530,80 @@
         var rect = this[0].getBoundingClientRect();
         return { top: rect.top, left: rect.left };
       },
+
+      scrollTop: function(val) {
+        if (val !== undefined) {
+          this.each(function() { this.scrollTop = val; window.scrollTo && window.scrollTo(window.scrollX, val); });
+          return this;
+        }
+        var el = this[0];
+        if (!el) return 0;
+        if (el === window || el === document) return window.scrollY || document.documentElement.scrollTop || 0;
+        return el.scrollTop;
+      },
+
+      scrollLeft: function(val) {
+        if (val !== undefined) {
+          this.each(function() { this.scrollLeft = val; window.scrollTo && window.scrollTo(val, window.scrollY); });
+          return this;
+        }
+        var el = this[0];
+        if (!el) return 0;
+        if (el === window || el === document) return window.scrollX || document.documentElement.scrollLeft || 0;
+        return el.scrollLeft;
+      },
+
+      width: function() {
+        var el = this[0];
+        if (!el) return 0;
+        if (el === window || el === document) return window.innerWidth || document.documentElement.clientWidth || 0;
+        return el.offsetWidth;
+      },
+
+      outerHeight: function(includeMargin) {
+        var el = this[0];
+        if (!el) return 0;
+        var h = el.offsetHeight || 0;
+        if (includeMargin) {
+          var s = getComputedStyle(el);
+          h += parseInt(s.marginTop || '0', 10) + parseInt(s.marginBottom || '0', 10);
+        }
+        return h;
+      },
+
+      outerWidth: function(includeMargin) {
+        var el = this[0];
+        if (!el) return 0;
+        var w = el.offsetWidth || 0;
+        if (includeMargin) {
+          var s = getComputedStyle(el);
+          w += parseInt(s.marginLeft || '0', 10) + parseInt(s.marginRight || '0', 10);
+        }
+        return w;
+      },
+
+      animate: function(props, duration, callback) {
+        if (!this[0]) return this;
+        var el = this[0];
+        var self = this;
+        // Set CSS changes directly (no CSS transitions — simpler for short anims)
+        for (var key in props) {
+          if (Object.prototype.hasOwnProperty.call(props, key)) {
+            el.style[key] = props[key];
+          }
+        }
+        // If duration is very short, callback fires after a small delay
+        // to let the browser paint the change (pulse/highlight effect)
+        if (callback) {
+          setTimeout(callback, duration || 70);
+        }
+        return this;
+      },
     };
 
     for (var key in methods) {
       if (Object.prototype.hasOwnProperty.call(methods, key)) {
-        Object.defineProperty(collection, key, { value: methods[key], writable: true });
+        collection[key] = methods[key];
       }
     }
 

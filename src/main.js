@@ -12,6 +12,29 @@
 import bus, { installEventBus } from './lib/event-bus.js';
 
 // ============================================================
+// Phase 6: React 18 — import modules (side-effects assign to window globals)
+// ============================================================
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+
+// ============================================================
+// JSX components — converted to function components + real JSX
+// Modules are side-effect imported; each assigns its exports to window
+// for compatibility with script-loaded game files (ui.js, etc.)
+// ============================================================
+import '../js/jsx/left.jsx';
+import '../js/jsx/mid.jsx';
+import '../js/jsx/toolbar.jsx';
+import '../js/jsx/chiral.jsx';
+import '../js/jsx/queue.jsx';
+
+// ============================================================
+// Expose React 18 globals for script-loaded game files
+// ============================================================
+window.React = React;
+window.createRoot = createRoot;
+
+// ============================================================
 // Global aliases for strict module compatibility
 // ============================================================
 var $ = window.$;
@@ -23,7 +46,6 @@ var mixin = window.mixin;
 var i18nLang = window.i18nLang;
 var Dropbox = window.Dropbox;
 var LZString = window.LZString;
-var React = window.React;
 var dojo = window.dojo;
 var game, gamePage;  // set at runtime by startGame()
 
@@ -45,8 +67,12 @@ function loadScript(src) {
 
 function loadGameFiles() {
   // Dependency order — must match SystemJS loading chain
+  // NOTE: jsx files are imported as ES modules above, not loaded dynamically
   var files = [
     'core.js',
+    'src/ui/Console.js',
+    'src/ui/Button.js',
+    'src/ui/Panel.js',
 
     'js/resources.js',
     'js/calendar.js',
@@ -58,12 +84,6 @@ function loadGameFiles() {
     'js/religion.js',
     'js/achievements.js',
 
-    'js/jsx/left.jsx.js',
-    'js/jsx/mid.jsx.js',
-    'js/jsx/toolbar.jsx.js',
-    'js/jsx/chiral.jsx.js',
-    'js/jsx/queue.jsx.js',
-
     'js/ui.js',
     'js/space.js',
     'js/prestige.js',
@@ -72,6 +92,12 @@ function loadGameFiles() {
     'js/challenges.js',
     'js/void.js',
     'js/math.js',
+
+    'src/game/Timer.js',
+    'src/game/Telemetry.js',
+    'src/game/Server.js',
+    'src/game/UndoChange.js',
+    'src/game/EffectsManager.js',
 
     'game.js',
     'js/toolbar.js',
@@ -88,6 +114,12 @@ function loadGameFiles() {
 (function boot() {
   var now = Date.now();
   var version = '1493';
+
+  // ---- Register Service Worker (PWA offline support) ----
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js');
+  }
+
   var buildRevision = 0;
 
   // ---- Install event bus (replaces dojo.publish/subscribe) ----

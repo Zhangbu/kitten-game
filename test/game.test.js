@@ -10,10 +10,10 @@
 beforeEach(() => {
     global.gamePage = global.game = new com.nuclearunicorn.game.ui.GamePage();
     global.newrelic = {
-        addPageAction: jest.fn(),
-        addRelease: jest.fn(),
-        setCustomAttribute: jest.fn(),
-        setErrorHandler: jest.fn()
+        addPageAction: vi.fn(),
+        addRelease: vi.fn(),
+        setCustomAttribute: vi.fn(),
+        setErrorHandler: vi.fn()
     }
 
     //TODO: use special UI system specifically for unit tests
@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 });
 
 test("basic sanity check, game must load hoglasave without crashing", () => {
@@ -292,7 +292,7 @@ test("Test NR calls", () => {
     expect(newrelic.addPageAction).toHaveBeenCalledWith("heartbeat", expect.any(Object));
     expect(newrelic.addPageAction).toHaveBeenCalledTimes(1);
 
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     game.opts.disableTelemetry = true;
     game.heartbeat();
     expect(newrelic.addPageAction).toHaveBeenCalledTimes(0);

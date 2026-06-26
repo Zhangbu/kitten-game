@@ -10,10 +10,10 @@
 beforeEach(() => {
     global.gamePage = global.game = new com.nuclearunicorn.game.ui.GamePage();
     global.newrelic = {
-        addPageAction: jest.fn(),
-        addRelease: jest.fn(),
-        setCustomAttribute: jest.fn(),
-        setErrorHandler: jest.fn()
+        addPageAction: vi.fn(),
+        addRelease: vi.fn(),
+        setCustomAttribute: vi.fn(),
+        setErrorHandler: vi.fn()
     }
 
     //TODO: use special UI system specifically for unit tests
@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 });
 
 

@@ -9,7 +9,7 @@ dojo.declare("com.nuclearunicorn.i18n.Lang", null, {
 	availableLocaleLabels: null,
 	language: null,
 	messages: null,
-	_deffered: null,
+	_deferred: null,
 	platformLocale: null,
 
 	//TODO: move to the configuration file
@@ -71,8 +71,8 @@ dojo.declare("com.nuclearunicorn.i18n.Lang", null, {
 	},
 
 	_init: function(timestamp) {
-		if (this._deffered) {
-			return this._deffered.promise();
+		if (this._deferred) {
+			return this._deferred.promise();
 		}
 		// check if user already selected the locale
 		var lang = LCstorage["com.nuclearunicorn.kittengame.language"];

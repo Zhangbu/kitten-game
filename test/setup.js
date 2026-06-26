@@ -1,33 +1,40 @@
 /**
  * ======================================
- *  Welcome to the JEST KG bootloader!
- * 
- *  dojo is problematic to load in the headless jest context,
+ *  Welcome to the VITEST KG bootloader!
+ *
+ *  dojo is problematic to load in the headless test context,
  *  given that it is a bunch of AMD modules with a lot of XHR request in the .xd. wrapper we use
- * 
- *  Until this problem is fixed (and trust me, it's not straightforward), we will use the mocked dojo
- * 
+ *
+ *  Until this problem is fixed (and trust me, it's not straightforward), we use the mocked dojo
+ *
  *  To at least load the game core, we are relying on the portable dojo.declare version and some fuckery with
  *  global namespaces
  * =======================================
  */
 
-console.log("==== starting jest bootloader ====");
-
-/* global 
+/* global
 
     global,
     require,
     gamePage
 */
 try {
-    global.React = require("../lib/react.min.js");
-    require("../lib/jQuery");
-
-    //todo: make portable dojo for jest bootloader
-    var createNamespace = require("./declare");
+    global.React = require("react");
+    // Provide createRoot for React 18 compatibility (ui.js now uses it)
+    global.createRoot = function(container) {
+        return {
+            render: function(element) {
+                // no-op in test environment
+            },
+            unmount: function() {
+                // no-op
+            }
+        };
+    };
 
     //---------- inventing creative workarounds since 20XX -------
+    var createNamespace = require("./declare");
+
     var namespace = { com: {}, classes: {}, mixin: {} };
     var dojo = createNamespace(namespace);
     global.com = namespace.com;
@@ -48,30 +55,66 @@ try {
             }
         },
         clone: function(mixin){return Object.assign({}, mixin);},
-        hitch: function(ctx, method){ return method.bind(ctx, arguments);},
+        hitch: function(ctx, method){ return function() {
+            return typeof method === 'string' ? ctx[method].apply(ctx, arguments) : method.apply(ctx, arguments);
+        };},
         connect: function(){},
         publish: function(){},
-        subscribe: function(){},
-        mixin: function(obj, mixin){return Object.assign(obj, mixin); }
+        subscribe: function(){ return 0; },
+        unsubscribe: function(){},
+        partial: function(fn) {
+            var args = Array.prototype.slice.call(arguments, 1);
+            return function() {
+                return fn.apply(this, args.concat(Array.prototype.slice.call(arguments)));
+            };
+        },
+        mixin: function(obj, mixin){return Object.assign(obj, mixin); },
+        create: function(tag, attrs, refNode, pos) {
+            var el = { style: {}, className: '', innerHTML: '' };
+            if (attrs) {
+                for (var k in attrs) el[k] = attrs[k];
+            }
+            return el;
+        },
+        place: function(node, refNode, pos) { return node; },
+        style: function(node, prop, val) { return ''; },
+        addClass: function(){},
+        removeClass: function(){},
     };
 
     var xhrMock = {
         done: function(){return this},
         fail: function(){return this},
-    }
+        always: function(){return this},
+    };
     global.$ = {
-        ajax: function(){ return xhrMock; }
-    }
+        ajax: function(){ return xhrMock; },
+        getJSON: function(url, cb) {
+            if (typeof url === 'function') cb = url;
+            if (cb) cb({ buildRevision: 0 });
+            return xhrMock;
+        },
+        Deferred: function() {
+            var d = {
+                resolve: function(){ return d; },
+                reject: function(){ return d; },
+                done: function(fn){ return d; },
+                fail: function(fn){ return d; },
+                always: function(fn){ return d; },
+                then: function(fn){ return d; },
+                promise: function(){ return d; },
+            };
+            return d;
+        },
+    };
 
     global.LZString = require("../lib/lz-string.js");
     require("../lib/dropbox_v2.js");
-    // SystemJS removed in Phase 1 — game files loaded via <script> tags
 
-    global.LCstorage = window.localStorage;
-    if (document.all && !window.localStorage) {
-        global.LCstorage = {};
-        global.LCstorage.removeItem = function () { };
-    }
+    global.LCstorage = {};
+    global.LCstorage.removeItem = function () { };
+    global.LCstorage.getItem = function() { return null; };
+    global.LCstorage.setItem = function() { };
 
     require("../config");
     require("../i18n");
@@ -82,6 +125,9 @@ try {
     };
 
     require("../core");
+    require("../src/ui/Console");
+    require("../src/ui/Button");
+    require("../src/ui/Panel");
 
     require("../js/resources");
     require("../js/calendar");
@@ -100,15 +146,21 @@ try {
     require("../js/challenges");
     require("../js/void");
     require("../js/math");
+    require("../src/game/Timer");
+    require("../src/game/Telemetry");
+    require("../src/game/Server");
+    require("../src/game/UndoChange");
+    require("../src/game/EffectsManager");
     require("../game");
-    require("../js/jsx/left.jsx");
     require("../js/ui");
     require("../js/toolbar");
 
-
-    jest.spyOn(global.console, "log").mockImplementation(() => jest.fn());
-    jest.spyOn(global.console, "trace").mockImplementation(() => jest.fn());
-    jest.spyOn(global.console, "warn").mockImplementation(() => jest.fn());
+    // Suppress console noise in tests
+    if (typeof vi !== 'undefined') {
+        vi.spyOn(global.console, "log").mockImplementation(function() {});
+        vi.spyOn(global.console, "trace").mockImplementation(function() {});
+        vi.spyOn(global.console, "warn").mockImplementation(function() {});
+    }
 }
 catch (e) {
     console.log("oh no big error");

@@ -10,6 +10,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 		<link rel="shortcut icon" href="res/favicon.gif" type="image/x-icon">
+			<link rel="manifest" href="/manifest.json">
 
 		<script type="text/javascript">
 			;window.NREUM||(NREUM={});NREUM.init={distributed_tracing:{enabled:true,exclude_newrelic_header:true},privacy:{cookies_enabled:true}};
@@ -19,9 +20,6 @@
 		</script>
 
 		<!-- I only use jquery ironically -->
-
-		<script src="lib/react.min.js"></script>   <!--todo: use min version -->
-
 		<!-- Local versions of libs will be hosted so our Chinese players wont be forced to use VPN -->
 		<script src="src/lib/jquery-shim.js"></script>
 		<script src="lib/dojo.js"></script>
@@ -49,19 +47,7 @@
 		</script>
 
 		<script>
-			/**
-			 * Workaround for IE9 local storage :V
-			 *
-			 * This fix is intended for IE in general and especially for IE9,
-			 * where localStorage is defined as system variable.
-			 *
-			 */
-
 			window.LCstorage = window.localStorage;
-			if (document.all && !window.localStorage) {
-				window.LCstorage = {};
-				window.LCstorage.removeItem = function () { };
-			}
 		</script>
 
 				<!-- Game boot files (core files loaded dynamically by main.js) -->

@@ -1,0 +1,12 @@
+{
+  "name": "Kittens Game",
+  "short_name": "Kittens",
+  "description": "A Dark Souls of incremental gaming",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#333333",
+  "icons": [
+    { "src": "/res/favicon.gif", "sizes": "32x32", "type": "image/gif" }
+  ]
+}

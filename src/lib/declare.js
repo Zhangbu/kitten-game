@@ -1,227 +1,135 @@
 /**
  * Transitional dojo.declare → ES6 class replacement
- *
- * Monkeypatches dojo.declare to create ES6 classes instead.
- * Handles single inheritance, mixins, statics, and this.inherited().
- * Game code continues to use dojo.declare syntax unchanged.
- *
- * Loaded by main.js before any game files.
  */
-
 (function() {
   'use strict';
-
-  if (typeof window.dojo === 'undefined') {
-    console.warn('[declare] dojo not found, skipping');
-    return;
-  }
-
-  // ── Helper: fullyQualify(name) → resolves "classes.Foo.Bar" to the class ──
-  function resolveNamespace(name) {
-    var parts = name.split('.');
-    var obj = window;
-    for (var i = 0; i < parts.length; i++) {
-      if (!obj[parts[i]]) obj[parts[i]] = {};
-      obj = obj[parts[i]];
-    }
-    return obj;
-  }
-
-  // ── Inherited call stack tracking ──────────────────────────────────────
-  // Each method wrapped by declare tracks which method name it belongs to,
-  // so this.inherited() knows which parent method to dispatch to.
+  if (typeof window.dojo === 'undefined') { console.warn('[declare] dojo not found, skipping'); return; }
 
   var callStack = [];
 
   function wrapMethod(name, fn) {
     return function wrapped() {
       callStack.push(name);
-      try {
-        return fn.apply(this, arguments);
-      } finally {
-        callStack.pop();
-      }
+      try { return fn.apply(this, arguments); } finally { callStack.pop(); }
     };
   }
 
-  // ── this.inherited(arguments, [extraArgs]) ──────────────────────────────
-  // Calls the parent class's version of the currently-executing method.
   window.dojo.inherited = function(args, extra) {
     var methodName = callStack[callStack.length - 1];
-    if (!methodName) {
-      console.warn('[declare] inherited() called outside wrapped method');
-      return;
+    if (!methodName) return;
+
+    // Count how many times this method name appears in the call stack.
+    // Each nested `inherited` call adds another entry because the parent
+    // method is also wrapped and pushes its name.  This tells us how many
+    // prototype levels to skip.
+    var depth = 0;
+    for (var ci = 0; ci < callStack.length; ci++) {
+      if (callStack[ci] === methodName) depth++;
     }
 
-    // Walk up prototype chain to find parent's version
     var proto = Object.getPrototypeOf(this.constructor.prototype);
-    while (proto && !proto.hasOwnProperty(methodName)) {
+    var skipped = 0;
+    while (proto) {
+      if (proto.hasOwnProperty(methodName)) {
+        if (skipped === depth - 1) break;
+        skipped++;
+      }
       proto = Object.getPrototypeOf(proto);
     }
-
-    if (proto && typeof proto[methodName] === 'function') {
-      // Extract the unwrapped function from the wrapper
-      var parentFn = proto[methodName];
-      // Call with either provided args or original arguments
-      return parentFn.apply(this, extra || args);
-    }
-
-    return undefined;
+    if (proto && typeof proto[methodName] === 'function') return proto[methodName].apply(this, extra || args);
   };
 
-  // ── dojo.declare(className, superClass, props) ──────────────────────────
   window.dojo.declare = function(className, superClass, props) {
-    if (typeof props === 'undefined' && typeof superClass === 'object') {
-      // dojo.declare(className, props) — no inheritance
-      props = superClass;
-      superClass = null;
-    }
-
+    if (typeof superClass === 'object' && typeof props === 'undefined') { props = superClass; superClass = null; }
     props = props || {};
-    var hasStatics = props.statics;
 
-    // Determine parent class(es)
-    var parents = [];
-    if (Array.isArray(superClass)) {
-      parents = superClass;  // First element is the primary parent, rest are mixins
-    } else if (superClass) {
-      parents = [superClass];
+    // Resolve parent & mixins
+    var Parent = null, mixins = [];
+    if (Array.isArray(superClass)) { Parent = superClass[0]; mixins = superClass.slice(1); }
+    else if (superClass) { Parent = superClass; }
+
+    // Separate static and instance properties
+    var staticProps = {}, instanceProps = {};
+    for (var k in props) {
+      if (!Object.prototype.hasOwnProperty.call(props, k)) continue;
+      if (k === 'statics') {
+        for (var s in props.statics) { if (Object.prototype.hasOwnProperty.call(props.statics, s)) staticProps[s] = props.statics[s]; }
+      } else if (k !== 'constructor') {
+        instanceProps[k] = typeof props[k] === 'function' ? wrapMethod(k, props[k]) : props[k];
+      }
     }
 
-    var Parent = parents.length > 0 ? parents[0] : null;
-    var mixins = parents.slice(1);
-
-    // ── Build prototype methods ──
-    var protoMethods = {};
-    var staticProps = {};
-
-    for (var key in props) {
-      if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
-      var val = props[key];
-
-      if (key === 'statics') {
-        // statics are static properties/methods on the constructor
-        for (var s in val) {
-          if (Object.prototype.hasOwnProperty.call(val, s)) {
-            staticProps[s] = val[s];
+    // Build ALL prototype methods (own + mixin, mixins non-overriding)
+    // We do this OUTSIDE the constructor so it runs once per class, not once per instantiation
+    function buildProto(parentProto, own, mxns) {
+      var p = Object.create(parentProto || null);
+      for (var k in own) { if (Object.prototype.hasOwnProperty.call(own, k)) p[k] = own[k]; }
+      for (var m = 0; m < mxns.length; m++) {
+        if (mxns[m] && mxns[m].prototype) {
+          for (var mk in mxns[m].prototype) {
+            if (Object.prototype.hasOwnProperty.call(mxns[m].prototype, mk) && !p.hasOwnProperty(mk)
+                && mk !== 'constructor' && typeof mxns[m].prototype[mk] === 'function') {
+              p[mk] = wrapMethod(mk, mxns[m].prototype[mk]);
+            }
           }
         }
-        continue;
       }
-
-      if (key === 'constructor') {
-        // constructor is not a method on the prototype
-        continue;
-      }
-
-      if (typeof val === 'function') {
-        protoMethods[key] = wrapMethod(key, val);
-      } else {
-        protoMethods[key] = val;
-      }
+      return p;
     }
 
-    // ── Create the class ──
-    var NewClass;
+    // The actual constructor — runs parent chain then child.
+    // IMPORTANT: This function has NO auto-instantiation guard because it is
+    // ALWAYS called via apply() from the wrapper below.
+    function realCtor() {
+      if (Parent) {
+        // Call parent's REAL constructor directly (bypass any auto-instantiation wrapper)
+        var pc = Parent._real || Parent;
+        if (typeof pc === 'function') pc.apply(this, arguments);
+      }
+      for (var mi = 0; mi < mixins.length; mi++) {
+        var mc = mixins[mi]._real || mixins[mi];
+        if (typeof mc === 'function') mc.apply(this, arguments);
+      }
+      if (props.constructor) props.constructor.apply(this, arguments);
+    }
 
+    // Public-facing constructor — adds auto-instantiation guard for user calls
+    function Klass() {
+      if (!(this instanceof Klass)) {
+        return new (Function.prototype.bind.apply(Klass, [null].concat(Array.prototype.slice.call(arguments))))();
+      }
+      return realCtor.apply(this, arguments);
+    }
+    // Prototype chain
+    Klass.prototype = Parent ? buildProto(Parent.prototype, instanceProps, mixins) : buildProto({}, instanceProps, mixins);
+    Klass.prototype.constructor = Klass;
+
+    // this.inherited on prototype
+    Klass.prototype.inherited = function(args, extra) {
+      return window.dojo.inherited.call(this, args, extra);
+    };
+
+    // Statics on constructor
     if (Parent) {
-      NewClass = (function(ParentClass) {
-        var cls = function() {
-          // Call constructor
-          if (props.constructor) {
-            props.constructor.apply(this, arguments);
-          }
-          // Call mixin constructors
-          for (var m = 0; m < mixins.length; m++) {
-            if (typeof mixins[m] === 'function' && mixins[m].prototype && mixins[m].prototype.constructor
-                && mixins[m].prototype.constructor !== Object) {
-              // Apply mixin constructor logic if it exists
-            }
-          }
-        };
+      for (var pk in Parent) { if (Object.prototype.hasOwnProperty.call(Parent, pk)) Klass[pk] = Parent[pk]; }
+    }
+    for (var sp in staticProps) { if (Object.prototype.hasOwnProperty.call(staticProps, sp)) Klass[sp] = staticProps[sp]; }
 
-        cls.prototype = Object.create(ParentClass.prototype);
-        cls.prototype.constructor = cls;
+    // _real must be set AFTER parent statics copy, otherwise Parent._real overwrites it
+    Klass._real = realCtor;
 
-        // Copy methods
-        for (var k in protoMethods) {
-          if (Object.prototype.hasOwnProperty.call(protoMethods, k)) {
-            cls.prototype[k] = protoMethods[k];
-          }
-        }
-
-        // Apply mixin methods (non-overriding)
-        for (var m = 0; m < mixins.length; m++) {
-          if (mixins[m] && mixins[m].prototype) {
-            var mProto = mixins[m].prototype;
-            for (var mk in mProto) {
-              if (Object.prototype.hasOwnProperty.call(mProto, mk)
-                  && !cls.prototype.hasOwnProperty(mk)
-                  && mk !== 'constructor'
-                  && typeof mProto[mk] === 'function') {
-                cls.prototype[mk] = wrapMethod(mk, mProto[mk]);
-              }
-            }
-          }
-        }
-
-        // Copy static properties from parent
-        for (var pk in ParentClass) {
-          if (Object.prototype.hasOwnProperty.call(ParentClass, pk)) {
-            cls[pk] = ParentClass[pk];
-          }
-        }
-
-        // Apply new static props
-        for (var sp in staticProps) {
-          if (Object.prototype.hasOwnProperty.call(staticProps, sp)) {
-            cls[sp] = staticProps[sp];
-          }
-        }
-
-        return cls;
-      })(Parent);
-    } else {
-      // No parent — standalone class
-      NewClass = function() {
-        if (props.constructor) {
-          props.constructor.apply(this, arguments);
-        }
-      };
-
-      NewClass.prototype = { constructor: NewClass };
-      for (var k in protoMethods) {
-        if (Object.prototype.hasOwnProperty.call(protoMethods, k)) {
-          NewClass.prototype[k] = protoMethods[k];
-        }
-      }
+    // statics on instances (original Dojo compat)
+    if (Object.keys(staticProps).length > 0) {
+      Klass.prototype.statics = {};
+      for (var sp2 in staticProps) { if (Object.prototype.hasOwnProperty.call(staticProps, sp2)) Klass.prototype.statics[sp2] = staticProps[sp2]; }
     }
 
-    // Static props for standalone class
-    if (!Parent) {
-      for (var s in staticProps) {
-        if (Object.prototype.hasOwnProperty.call(staticProps, s)) {
-          NewClass[s] = staticProps[s];
-        }
-      }
-    }
-
-    // ── Register in global namespace ──
-    registerClass(className, NewClass);
-
-    return NewClass;
+    // Register
+    var parts = className.split('.'), name = parts.pop();
+    var ns = parts.reduce(function(o, p) { if (!o[p]) o[p] = {}; return o[p]; }, window);
+    ns[name] = Klass;
+    return Klass;
   };
-
-  // ── Helper: register a class in its namespace ──────────────────────────
-  function registerClass(name, cls) {
-    var parts = name.split('.');
-    var targetName = parts.pop();
-    var namespace = parts.reduce(function(obj, part) {
-      if (!obj[part]) obj[part] = {};
-      return obj[part];
-    }, window);
-    namespace[targetName] = cls;
-  }
 
   console.log('[declare] dojo.declare replaced with ES6 class implementation');
 })();

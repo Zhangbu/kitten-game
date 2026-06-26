@@ -26,10 +26,10 @@
     },
  */
 
-var $r = React.createElement;
 dojo.declare("mixin.IReactAware", null, {
     component: null,
     container: null,
+    _root: null,
 
     constructor: function(component, game){
         this.component = component;
@@ -39,9 +39,12 @@ dojo.declare("mixin.IReactAware", null, {
     render: function(container){
         this.game.ui.dirtyComponents.push(this);
 
-        React.render($r(this.component, {
+        if (!this._root) {
+            this._root = createRoot(container);
+        }
+        this._root.render(React.createElement(this.component, {
             game: this.game
-        }), container);
+        }));
 
         this.container = container;
         return container;
@@ -56,7 +59,9 @@ dojo.declare("mixin.IReactAware", null, {
         if (!this.container){
             throw "Integrity failure, trying to unmount component on an empty container";
         }
-        React.unmountComponentAtNode(this.container);
+        if (this._root) {
+            this._root.unmount();
+        }
     }
 });
 
@@ -579,23 +584,30 @@ dojo.declare("classes.ui.DesktopUI", classes.ui.UISystem, {
             $(".console-intro").text($I("console.intro"));
         }
 
-        React.render($r(WLeftPanel, {
-            game: this.game
-        }), document.getElementById("leftColumnViewport"));
-
-        React.render($r(WMidPanel, {
-            game: this.game
-        }), document.getElementById("midColumnViewport"));
-
-        if(this.game.getFeatureFlag("QUEUE")){
-            React.render($r(WQueue, {
-                game: this.game
-            }), document.getElementById("queueViewport"));
+        // Use a global root cache (dojo method dispatch can lose `this` context across calls)
+        var roots = window.__kgRoots || (window.__kgRoots = {});
+        function ensureRoot(id) {
+            var el = document.getElementById(id);
+            return roots[id] || (roots[id] = createRoot(el));
         }
 
-        React.render($r(WToolbar, {
+        ensureRoot("leftColumnViewport").render(React.createElement(WLeftPanel, {
             game: this.game
-        }), document.getElementById("headerToolbar"));
+        }));
+
+        ensureRoot("midColumnViewport").render(React.createElement(WMidPanel, {
+            game: this.game
+        }));
+
+        if(this.game.getFeatureFlag("QUEUE")){
+            ensureRoot("queueViewport").render(React.createElement(WQueue, {
+                game: this.game
+            }));
+        }
+
+        ensureRoot("headerToolbar").render(React.createElement(WToolbar, {
+            game: this.game
+        }));
     },
 
     //---------------------------------------------------------------
